@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TelemetryVault | ACC Telemetry Dashboard</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏁</text></svg>">
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="header">
+    <a href="/" class="logo-container">
+      <div class="logo-icon">⚡</div>
+      <div class="logo-text">TELEMETRY<span>VAULT</span></div>
+    </a>
+    <div class="nav-status">
+      <div class="status-badge">
+        <span id="status-dot" class="status-dot idle"></span>
+        <span id="status-text">INITIALIZING...</span>
+      </div>
+      <div class="status-badge" style="color: var(--text-secondary);">
+        UDP: <span style="color: var(--accent-cyan);">20000</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Active Live Session Banner (Shown if recording) -->
+    <div id="live-banner" class="live-banner" style="display: none;">
+      <div class="live-banner-info">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span class="status-dot"></span>
+          <strong style="color: var(--accent-green); font-family: var(--font-mono); letter-spacing: 0.5px;">LIVE SESSION RECORDING</strong>
+        </div>
+        <div class="chip" id="live-session-id">#--</div>
+        <div class="chip" id="live-lap-count">Lap --</div>
+        <div class="chip" id="live-frame-count">-- frames</div>
+      </div>
+      <a id="live-analysis-btn" href="#" class="btn btn-primary">
+        ⚡ Open Live Analysis
+      </a>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <label for="filter-track" style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary);">TRACK:</label>
+        <select id="filter-track" class="select-input">
+          <option value="">All Tracks</option>
+        </select>
+        <input type="text" id="search-input" class="text-input" placeholder="Search driver or car..." style="width: 220px;" />
+      </div>
+
+      <div class="filter-group">
+        <button id="btn-refresh" class="btn">
+          ↻ Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Sessions List Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="dot"></span>
+          Recorded Sessions
+        </div>
+      </div>
+
+      <div class="card-body" style="padding: 0;">
+        <table class="sessions-table">
+          <thead>
+            <tr>
+              <th>Track</th>
+              <th>Car & Driver</th>
+              <th>Date / Duration</th>
+              <th>Laps</th>
+              <th>Best Lap</th>
+              <th>Status</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="sessions-tbody">
+            <!-- Dynamic rows inserted by app.js -->
+          </tbody>
+        </table>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="empty-state" style="display: none;">
+          <h3>No Telemetry Sessions Found</h3>
+          <p style="margin-bottom: 1.5rem;">Start ACC with UDP broadcast enabled, or run the simulator script to inject test hotlaps.</p>
+          <div style="background: var(--bg-inset); padding: 0.75rem 1.25rem; border-radius: 4px; display: inline-block; border: 1px solid var(--border-color); font-family: var(--font-mono); font-size: 0.85rem;">
+            python3 simulator.py --fast --laps 2
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer style="text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.8rem; border-top: 1px solid var(--border-color); font-family: var(--font-mono);">
+    TelemetryVault &bull; Assetto Corsa Competizione Ingestion Engine &bull; Raspberry Pi ARM64
+  </footer>
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telemetry Analysis | TelemetryVault</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <!-- Local Vendored Chart.js -->
+  <script src="/static/js/vendor/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="header">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <a href="/" class="btn" style="padding: 0.35rem 0.75rem;">← Sessions</a>
+      <a href="/" class="logo-container">
+        <div class="logo-icon">⚡</div>
+        <div class="logo-text">TELEMETRY<span>VAULT</span></div>
+      </a>
+    </div>
+
+    <!-- Live streaming badge if WebSocket connected -->
+    <div id="live-stream-badge" class="status-badge" style="display: none; border-color: var(--accent-green); color: var(--accent-green);">
+      <span class="status-dot"></span> LIVE INGESTION
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Analysis Header & Metadata -->
+    <div class="analysis-header">
+      <div class="session-meta-chips">
+        <div class="chip"><span>CIRCUIT:</span> <strong id="chip-track" style="color: var(--accent-cyan);">--</strong></div>
+        <div class="chip"><span>CAR:</span> <strong id="chip-car">--</strong></div>
+        <div class="chip"><span>DRIVER:</span> <strong id="chip-driver">--</strong></div>
+        <div class="chip"><span>DATE:</span> <span id="chip-date" class="time-mono">--</span></div>
+        <div class="chip"><span>BEST LAP:</span> <strong id="chip-best-lap" class="best-lap">--:--.---</strong></div>
+      </div>
+
+      <!-- Mode & Lap Selectors -->
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <div class="btn-group">
+          <button id="tab-single" class="btn active">Telemetry</button>
+          <button id="tab-compare" class="btn">Lap Compare</button>
+        </div>
+
+        <select id="select-lap" class="select-input" style="font-weight: 600;">
+          <option value="all">All Laps (Overview)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Replay & Timeline Scrubber Bar -->
+    <div class="replay-bar">
+      <button id="btn-play" class="btn btn-accent" style="min-width: 90px;">
+        ▶ Play
+      </button>
+
+      <input type="range" id="scrubber-slider" class="scrubber-slider" min="0" max="100" value="0" />
+
+      <div id="scrubber-time" class="time-mono" style="font-size: 0.85rem; min-width: 110px; text-align: right; color: var(--accent-cyan);">
+        0.00s (0.0%)
+      </div>
+
+      <div class="btn-group">
+        <button class="btn active" data-speed="1.0">1x</button>
+        <button class="btn" data-speed="2.0">2x</button>
+        <button class="btn" data-speed="5.0">5x</button>
+      </div>
+    </div>
+
+    <!-- Top Grid: Track Map & Telemetry HUD Gauges -->
+    <div class="analysis-grid">
+
+      <!-- Track Map Card -->
+      <div class="card trackmap-card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="dot"></span>
+            Track Map
+          </div>
+          <div class="btn-group">
+            <button class="btn active" data-map-mode="speed" title="Speed Heatmap">Speed</button>
+            <button class="btn" data-map-mode="throttle" title="Throttle Application">Throttle</button>
+            <button class="btn" data-map-mode="brake" title="Braking Zones">Brake</button>
+            <button class="btn" data-map-mode="gear" title="Gear Selection">Gear</button>
+          </div>
+        </div>
+
+        <div class="card-body" style="padding: 0.75rem;">
+          <div class="trackmap-container">
+            <canvas id="trackmap-canvas"></canvas>
+
+            <div class="trackmap-overlay">
+              <div>MAX: <span id="map-max-speed" style="color: var(--accent-green);">-- km/h</span></div>
+              <div>MIN: <span id="map-min-speed" style="color: var(--accent-cyan);">-- km/h</span></div>
+            </div>
+
+            <div class="trackmap-legend">
+              <span style="color: var(--text-muted);">MIN</span>
+              <div class="legend-bar"></div>
+              <span style="color: var(--text-muted);">MAX</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Telemetry Gauges HUD -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="dot"></span>
+            Telemetry HUD & Gauges
+          </div>
+        </div>
+
+        <div class="card-body">
+          <!-- Primary Numerical Gauges -->
+          <div class="hud-grid">
+            <div class="hud-tile">
+              <div class="hud-tile-label">Speed</div>
+              <div class="hud-tile-value" id="hud-speed">0</div>
+              <div class="hud-tile-sub">km/h</div>
+            </div>
+
+            <div class="hud-tile">
+              <div class="hud-tile-label">Gear</div>
+              <div class="hud-tile-value gear" id="hud-gear">N</div>
+              <div class="hud-tile-sub">Shift</div>
+            </div>
+
+            <div class="hud-tile">
+              <div class="hud-tile-label">RPM</div>
+              <div class="hud-tile-value" id="hud-rpm" style="color: var(--accent-amber);">0</div>
+              <div class="hud-tile-sub">/ <span id="hud-max-rpm">8500</span></div>
+            </div>
+
+            <div class="hud-tile">
+              <div class="hud-tile-label">Steering</div>
+              <div class="hud-tile-value" id="hud-steer" style="color: var(--accent-cyan); font-size: 1.4rem;">0.0°</div>
+              <div class="hud-tile-sub"><span id="hud-g-lat">0.0G</span> Lat</div>
+            </div>
+          </div>
+
+          <!-- Progressive LED Tachometer Shift Light Bar -->
+          <div class="tacho-container">
+            <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-secondary);">
+              <span>RPM TACHOMETER</span>
+              <span id="hud-g-lon" style="color: var(--text-muted);">0.0G Lon</span>
+            </div>
+            <div class="tacho-bar-wrapper">
+              <div id="hud-rpm-bar" class="tacho-bar-fill"></div>
+            </div>
+          </div>
+
+          <!-- Throttle and Brake Pedal Inputs -->
+          <div class="pedals-container">
+            <div class="pedal-bar-col">
+              <div class="pedal-label">
+                <span style="color: var(--accent-green);">THROTTLE</span>
+                <span id="hud-throttle-val" style="color: var(--accent-green);">0%</span>
+              </div>
+              <div class="pedal-track">
+                <div id="hud-throttle-bar" class="pedal-fill-throttle"></div>
+              </div>
+            </div>
+
+            <div class="pedal-bar-col">
+              <div class="pedal-label">
+                <span style="color: var(--accent-red);">BRAKE</span>
+                <span id="hud-brake-val" style="color: var(--accent-red);">0%</span>
+              </div>
+              <div class="pedal-track">
+                <div id="hud-brake-bar" class="pedal-fill-brake"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4-Corner Tyres & Brakes HUD -->
+          <div class="tyre-hud">
+            <!-- Front Left -->
+            <div id="tyre-box-fl" class="tyre-corner">
+              <div class="tyre-corner-header">
+                <span>FRONT LEFT</span>
+                <span id="tyre-press-fl">26.8 PSI</span>
+              </div>
+              <div class="tyre-corner-data">
+                <span id="tyre-temp-fl">80°C</span>
+                <span id="brake-temp-fl" style="color: var(--text-secondary);">350°C</span>
+              </div>
+            </div>
+
+            <!-- Front Right -->
+            <div id="tyre-box-fr" class="tyre-corner">
+              <div class="tyre-corner-header">
+                <span>FRONT RIGHT</span>
+                <span id="tyre-press-fr">26.8 PSI</span>
+              </div>
+              <div class="tyre-corner-data">
+                <span id="tyre-temp-fr">80°C</span>
+                <span id="brake-temp-fr" style="color: var(--text-secondary);">350°C</span>
+              </div>
+            </div>
+
+            <!-- Rear Left -->
+            <div id="tyre-box-rl" class="tyre-corner">
+              <div class="tyre-corner-header">
+                <span>REAR LEFT</span>
+                <span id="tyre-press-rl">26.4 PSI</span>
+              </div>
+              <div class="tyre-corner-data">
+                <span id="tyre-temp-rl">78°C</span>
+                <span id="brake-temp-rl" style="color: var(--text-secondary);">280°C</span>
+              </div>
+            </div>
+
+            <!-- Rear Right -->
+            <div id="tyre-box-rr" class="tyre-corner">
+              <div class="tyre-corner-header">
+                <span>REAR RIGHT</span>
+                <span id="tyre-press-rr">26.4 PSI</span>
+              </div>
+              <div class="tyre-corner-data">
+                <span id="tyre-temp-rr">78°C</span>
+                <span id="brake-temp-rr" style="color: var(--text-secondary);">280°C</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Mode 1: Single Lap Telemetry Charts View -->
+    <div id="single-lap-container" class="single-lap-container">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="dot"></span>
+            Synchronized Telemetry Traces
+          </div>
+          <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">
+            Scrub or hover across any chart to inspect synchronized data
+          </div>
+        </div>
+
+        <div class="card-body" style="padding: 0.75rem;">
+          <!-- Speed Chart -->
+          <div class="chart-container">
+            <canvas id="chart-speed"></canvas>
+          </div>
+
+          <!-- Throttle & Brake Chart -->
+          <div class="chart-container">
+            <canvas id="chart-pedals"></canvas>
+          </div>
+
+          <!-- Gear & RPM Chart -->
+          <div class="chart-container">
+            <canvas id="chart-gear-rpm"></canvas>
+          </div>
+
+          <!-- Steering & G-Force Chart -->
+          <div class="chart-container">
+            <canvas id="chart-steer"></canvas>
+          </div>
+
+          <!-- Tyres Temperatures -->
+          <div class="chart-container">
+            <canvas id="chart-tyres"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mode 2: Lap Comparison View (Delta-T) -->
+    <div id="compare-container" class="compare-container" style="display: none;">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="dot"></span>
+            Lap-by-Lap Telemetry Comparison & Delta-T
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <label style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-green);">BASE LAP:</label>
+            <select id="compare-lap-1" class="select-input"></select>
+            <label style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-cyan);">COMPARE LAP:</label>
+            <select id="compare-lap-2" class="select-input"></select>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <!-- Comparison Summary Cards -->
+          <div class="hud-grid" style="margin-bottom: 1rem;">
+            <div class="hud-tile">
+              <div class="hud-tile-label">Base Lap Time</div>
+              <div class="hud-tile-value" id="compare-time-1" style="color: var(--accent-green);">--:--.---</div>
+            </div>
+            <div class="hud-tile">
+              <div class="hud-tile-label">Compare Lap Time</div>
+              <div class="hud-tile-value" id="compare-time-2" style="color: var(--accent-cyan);">--:--.---</div>
+            </div>
+            <div class="hud-tile">
+              <div class="hud-tile-label">Net Delta (Δ)</div>
+              <div id="compare-net-delta" class="delta-stat">--.---s</div>
+            </div>
+            <div class="hud-tile">
+              <div class="hud-tile-label">Analysis Mode</div>
+              <div class="hud-tile-value" style="font-size: 1.1rem; color: var(--accent-amber);">Distance-Aligned</div>
+            </div>
+          </div>
+
+          <!-- Delta-T Chart -->
+          <div class="chart-container" style="height: 180px;">
+            <canvas id="chart-compare-delta"></canvas>
+          </div>
+
+          <!-- Speed Comparison Chart -->
+          <div class="chart-container" style="height: 180px;">
+            <canvas id="chart-compare-speed"></canvas>
+          </div>
+
+          <!-- Pedals Comparison Chart -->
+          <div class="chart-container" style="height: 180px;">
+            <canvas id="chart-compare-pedals"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Laps Table Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="dot"></span>
+          Session Laps & Consistency
+        </div>
+      </div>
+      <div class="card-body" style="padding: 0;">
+        <table class="sessions-table">
+          <thead>
+            <tr>
+              <th>Lap #</th>
+              <th>Lap Time</th>
+              <th>Delta (Gap)</th>
+              <th>Max Speed</th>
+              <th>Avg Speed</th>
+              <th>Data Points</th>
+            </tr>
+          </thead>
+          <tbody id="laps-table-body">
+            <!-- Populated dynamically by analysis.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <footer style="text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.8rem; border-top: 1px solid var(--border-color); font-family: var(--font-mono);">
+    TelemetryVault &bull; Race Engineer Analysis Suite &bull; ACC Telemetry Ingestion
+  </footer>
+
+  <script type="module" src="/static/js/analysis.js"></script>
+</body>
+</html>
