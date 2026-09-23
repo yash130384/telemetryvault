@@ -5,9 +5,10 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from server.config import UDP_HOST, UDP_PORT, BASE_DIR
+from server.config import UDP_HOST, UDP_PORT, BASE_DIR, ACC_ENABLED
 from server.db import init_db, close_db
 from server.ingest import telemetry_manager, TelemetryUDPProtocol
+from server.acc_client import acc_client
 from server.api import router as api_router
 
 # Configure logging
@@ -42,9 +43,22 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to bind UDP port {UDP_PORT}: {e}", exc_info=True)
 
+    # Start native ACC UDP broadcasting client if enabled
+    if ACC_ENABLED:
+        try:
+            await acc_client.start()
+        except Exception as e:
+            logger.error(f"Failed to start ACC client: {e}", exc_info=True)
+
     yield
 
     logger.info("Shutting down TelemetryVault...")
+    if ACC_ENABLED:
+        try:
+            await acc_client.stop()
+        except Exception as e:
+            logger.error(f"Error stopping ACC client: {e}", exc_info=True)
+
     if udp_transport:
         udp_transport.close()
     await telemetry_manager.stop()

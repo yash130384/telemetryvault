@@ -174,16 +174,9 @@ class TelemetryManager:
             "raw": data_dict
         }
 
-    async def handle_packet(self, raw_data: bytes):
+    async def handle_packet_dict(self, packet_dict: Dict[str, Any]):
         now_ts = time.time()
         now_dt = datetime.datetime.now(datetime.timezone.utc)
-
-        try:
-            packet_dict = json.loads(raw_data.decode("utf-8", errors="replace"))
-        except Exception as e:
-            logger.debug(f"Invalid JSON packet received: {e}")
-            return
-
         parsed = self.parse_packet(packet_dict)
 
         async with self._lock:
@@ -283,7 +276,7 @@ class TelemetryManager:
                 "best_lap_time_ms": self.best_lap_time_ms
             }
 
-        # Queue record for batch insert without holding manager lock
+        # Queue record for bulk insert without holding manager lock
         try:
             self.queue.put_nowait(record)
         except asyncio.QueueFull:
@@ -292,6 +285,14 @@ class TelemetryManager:
         # Broadcast live frame asynchronously
         if self.live_clients:
             asyncio.create_task(self.broadcast_live(self.latest_frame))
+
+    async def handle_packet(self, raw_data: bytes):
+        try:
+            packet_dict = json.loads(raw_data.decode("utf-8", errors="replace"))
+        except Exception as e:
+            logger.debug(f"Invalid JSON packet received: {e}")
+            return
+        await self.handle_packet_dict(packet_dict)
 
     async def _start_new_session_locked(self, parsed: Dict[str, Any], start_dt: datetime.datetime):
         pool = await get_db_pool()

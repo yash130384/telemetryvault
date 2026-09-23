@@ -26,3 +26,7 @@ UDP_PORT = int(os.environ.get("UDP_PORT", 20000))
 HTTP_HOST = os.environ.get("HTTP_HOST", "0.0.0.0")
 HTTP_PORT = int(os.environ.get("HTTP_PORT", 8000))
 SESSION_IDLE_TIMEOUT = float(os.environ.get("SESSION_IDLE_TIMEOUT", 30.0))
+
+ACC_HOST = os.environ.get("ACC_HOST", "192.168.31.123")
+ACC_PORT = int(os.environ.get("ACC_PORT", 20000))
+ACC_ENABLED = os.environ.get("ACC_ENABLED", "true").lower() in ("1", "true", "yes")
