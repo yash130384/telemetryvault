@@ -26,7 +26,7 @@ from server.acc_protocol import (
     build_request_entry_list,
     parse_packet,
 )
-from server.acc_client import ACCClient
+from server.acc_client import ACCClient, ACC_CAR_MODELS
 
 
 def pack_lap(laptime: int, splits: list[int], is_invalid: bool = False, is_valid_for_best: bool = True) -> bytes:
@@ -38,6 +38,9 @@ def pack_lap(laptime: int, splits: list[int], is_invalid: bool = False, is_valid
 
 
 class TestACCProtocol(unittest.TestCase):
+    def test_acc_car_models(self):
+        self.assertEqual(ACC_CAR_MODELS.get(34), "Porsche 992 GT3 R")
+
     def test_build_registration_request(self):
         req = build_registration_request(display_name="TelemetryVault", update_interval_ms=100)
         self.assertIsInstance(req, bytes)
@@ -250,6 +253,10 @@ class TestACCClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(telemetry["driver"], "Kevin Estre")
         self.assertEqual(telemetry["car"], "Porsche 992 GT3 R")
         self.assertEqual(telemetry["lap_time_ms"], 115000)
+        self.assertEqual(telemetry["last_lap_ms"], 115000)
+        self.assertEqual(telemetry["coord_x"], 10.0)
+        self.assertEqual(telemetry["coord_y"], 20.0)
+        self.assertEqual(telemetry["coord_z"], 20.0)
 
         # 6. RealtimeCarUpdate for a different car should be ignored
         car_other_raw = (

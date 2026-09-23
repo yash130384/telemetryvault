@@ -98,6 +98,14 @@ class TelemetryManager:
         else:
             lap_time_ms = int(raw_lap_time)
 
+        raw_last_lap = data_dict.get("last_lap_ms") or data_dict.get("lastLapMs") or data_dict.get("lastLapTimeMS")
+        if isinstance(raw_last_lap, float) and raw_last_lap < 3600.0:
+            last_lap_ms = int(raw_last_lap * 1000)
+        elif raw_last_lap is not None:
+            last_lap_ms = int(raw_last_lap)
+        else:
+            last_lap_ms = None
+
         session_time = float(data_dict.get("sessionTime") or data_dict.get("session_time") or 0.0)
         track_pos = float(data_dict.get("normalizedCarPosition") or data_dict.get("track_pos") or data_dict.get("trackPosition") or 0.0)
 
@@ -116,6 +124,9 @@ class TelemetryManager:
             coord_x = float(data_dict.get("coord_x") or data_dict.get("x") or 0.0)
             coord_y = float(data_dict.get("coord_y") or data_dict.get("y") or 0.0)
             coord_z = float(data_dict.get("coord_z") or data_dict.get("z") or 0.0)
+
+        if coord_z == 0.0 and coord_y != 0.0:
+            coord_z = coord_y
 
         yaw_rate = float(data_dict.get("yawRate") or data_dict.get("yaw_rate") or data_dict.get("yaw") or 0.0)
 
@@ -163,7 +174,7 @@ class TelemetryManager:
         return {
             "speed": speed, "rpm": rpm, "max_rpm": max_rpm, "gear": gear,
             "throttle": throttle, "brake": brake, "clutch": clutch, "steer": steer,
-            "lap": lap, "lap_time_ms": lap_time_ms, "session_time": session_time,
+            "lap": lap, "lap_time_ms": lap_time_ms, "last_lap_ms": last_lap_ms, "session_time": session_time,
             "track_pos": track_pos,
             "coord_x": coord_x, "coord_y": coord_y, "coord_z": coord_z,
             "yaw_rate": yaw_rate, "g_force_lat": g_lat, "g_force_lon": g_lon,
@@ -255,6 +266,7 @@ class TelemetryManager:
                 "frame_count": self.frame_count,
                 "lap": parsed["lap"],
                 "lap_time_ms": parsed["lap_time_ms"],
+                "last_lap_ms": parsed.get("last_lap_ms"),
                 "speed": parsed["speed"],
                 "rpm": parsed["rpm"],
                 "max_rpm": parsed["max_rpm"],
@@ -318,12 +330,19 @@ class TelemetryManager:
         if not self.active_session_id:
             return
         
-        # Calculate lap time: from parsed lastLapMs or time difference
-        lap_time_ms = parsed.get("raw", {}).get("lastLapTimeMS") or parsed.get("raw", {}).get("lastLap") or parsed.get("lap_time_ms") or 0
-        if isinstance(lap_time_ms, float) and lap_time_ms < 3600.0:
-            lap_time_ms = int(lap_time_ms * 1000)
+        # Calculate lap time: prefer last_lap_ms or lastLapTimeMS before falling back to lap_time_ms
+        raw_last = (
+            parsed.get("last_lap_ms")
+            or (parsed.get("raw") or {}).get("last_lap_ms")
+            or (parsed.get("raw") or {}).get("lastLapTimeMS")
+            or (parsed.get("raw") or {}).get("lastLap")
+            or parsed.get("lap_time_ms")
+            or 0
+        )
+        if isinstance(raw_last, float) and raw_last < 3600.0:
+            lap_time_ms = int(raw_last * 1000)
         else:
-            lap_time_ms = int(lap_time_ms)
+            lap_time_ms = int(raw_last)
 
         if lap_time_ms <= 0 and self.lap_start_time:
             delta = (end_dt - self.lap_start_time).total_seconds()
