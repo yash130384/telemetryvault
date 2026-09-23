@@ -1,4 +1,4 @@
-import { fetchSession, fetchSessionLaps, fetchTelemetry, fetchTrackmap, fetchLapComparison, formatLapTime, formatDateTime } from "./api.js";
+import { fetchSession, fetchSessionLaps, fetchTelemetry, fetchTrackmap, fetchLapComparison, fetchSessionReport, formatLapTime, formatSectorTime, formatDateTime } from "./api.js";
 import { TrackMapRenderer } from "./trackmap.js";
 import { GaugesHUD } from "./gauges.js";
 import { TelemetryCharts } from "./charts.js";
@@ -7,10 +7,11 @@ import { TelemetryCharts } from "./charts.js";
 let sessionId = null;
 let sessionData = null;
 let lapsData = [];
+let reportData = null;
 let currentLapNumber = null;
 let currentFrames = [];
 let trackmapPoints = [];
-let activeMode = "single"; // 'single' | 'compare'
+let activeMode = "single"; // 'single' | 'compare' | 'report'
 let isPlaying = false;
 let playSpeed = 1.0;
 let playInterval = null;
@@ -61,15 +62,19 @@ function setupEventListeners() {
   // Mode Switcher
   const tabSingle = document.getElementById("tab-single");
   const tabCompare = document.getElementById("tab-compare");
+  const tabReport = document.getElementById("tab-report");
   const singleContainer = document.getElementById("single-lap-container");
   const compareContainer = document.getElementById("compare-container");
+  const reportContainer = document.getElementById("report-container");
 
   tabSingle?.addEventListener("click", () => {
     activeMode = "single";
     tabSingle.classList.add("active");
     tabCompare?.classList.remove("active");
+    tabReport?.classList.remove("active");
     if (singleContainer) singleContainer.style.display = "block";
     if (compareContainer) compareContainer.style.display = "none";
+    if (reportContainer) reportContainer.style.display = "none";
     loadLapTelemetry();
   });
 
@@ -77,10 +82,50 @@ function setupEventListeners() {
     activeMode = "compare";
     tabCompare.classList.add("active");
     tabSingle?.classList.remove("active");
+    tabReport?.classList.remove("active");
     if (singleContainer) singleContainer.style.display = "none";
     if (compareContainer) compareContainer.style.display = "block";
+    if (reportContainer) reportContainer.style.display = "none";
     loadComparisonData();
   });
+
+  tabReport?.addEventListener("click", () => {
+    activeMode = "report";
+    tabReport.classList.add("active");
+    tabSingle?.classList.remove("active");
+    tabCompare?.classList.remove("active");
+    if (singleContainer) singleContainer.style.display = "none";
+    if (compareContainer) compareContainer.style.display = "none";
+    if (reportContainer) reportContainer.style.display = "block";
+    renderReportView();
+  });
+
+  // Copy Debriefing Button
+  const btnCopy = document.getElementById("btn-copy-debrief");
+  btnCopy?.addEventListener("click", async () => {
+    if (!reportData?.debriefing_text) return;
+    try {
+      await navigator.clipboard.writeText(reportData.debriefing_text);
+      showCopyBadge();
+    } catch (err) {
+      console.warn("Clipboard API failed, using fallback:", err);
+      const ta = document.createElement("textarea");
+      ta.value = reportData.debriefing_text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      showCopyBadge();
+    }
+  });
+
+  function showCopyBadge() {
+    const badge = document.getElementById("copy-status");
+    if (badge) {
+      badge.style.display = "inline-flex";
+      setTimeout(() => { badge.style.display = "none"; }, 3000);
+    }
+  }
 
   // Lap Selector
   const lapSelect = document.getElementById("select-lap");
@@ -131,7 +176,17 @@ function setupEventListeners() {
 async function loadSessionData() {
   try {
     sessionData = await fetchSession(sessionId);
-    lapsData = sessionData.laps || [];
+    try {
+      reportData = await fetchSessionReport(sessionId);
+      if (reportData && reportData.laps && reportData.laps.length > 0) {
+        lapsData = reportData.laps;
+      } else {
+        lapsData = sessionData.laps || [];
+      }
+    } catch (e) {
+      console.warn("Could not load report data:", e);
+      lapsData = sessionData.laps || [];
+    }
 
     // Populate header chips
     document.getElementById("chip-track").textContent = (sessionData.track || "unknown").toUpperCase();
@@ -189,6 +244,7 @@ async function loadSessionData() {
     }
 
     renderLapsTable();
+    renderReportView();
     await loadTrackmapData();
     await loadLapTelemetry();
 
@@ -202,28 +258,60 @@ function renderLapsTable() {
   const tbody = document.getElementById("laps-table-body");
   if (!tbody) return;
 
-  const bestLapMs = sessionData.best_lap_time_ms;
+  const bestLapMs = sessionData?.best_lap_time_ms || reportData?.optimal_lap?.best_lap_ms;
+  const bestS1 = reportData?.sectors_summary?.best_s1_ms;
+  const bestS2 = reportData?.sectors_summary?.best_s2_ms;
+  const bestS3 = reportData?.sectors_summary?.best_s3_ms;
+  const optimalLapMs = reportData?.optimal_lap?.optimal_lap_ms;
+  const potentialGainMs = reportData?.optimal_lap?.potential_gain_ms;
 
-  tbody.innerHTML = lapsData.map(l => {
+  let optimalRowHtml = "";
+  if (optimalLapMs) {
+    const deltaStr = potentialGainMs !== null && potentialGainMs !== undefined
+      ? `-${(potentialGainMs / 1000).toFixed(3)}s`
+      : "--";
+    optimalRowHtml = `
+      <tr class="optimal-lap-row" title="THEORETISCHE BESTZEIT (OPTIMAL LAP): Schnellste Einzelsektoren kombiniert">
+        <td class="time-mono"><span class="badge-purple">OPTIMAL</span></td>
+        <td class="time-mono sector-purple">${formatLapTime(optimalLapMs)}</td>
+        <td class="time-mono sector-purple">${formatSectorTime(bestS1)}</td>
+        <td class="time-mono sector-purple">${formatSectorTime(bestS2)}</td>
+        <td class="time-mono sector-purple">${formatSectorTime(bestS3)}</td>
+        <td class="time-mono sector-purple">${deltaStr}</td>
+        <td class="time-mono" style="color: var(--text-muted);">-</td>
+        <td class="time-mono" style="color: var(--text-muted);">-</td>
+      </tr>
+    `;
+  }
+
+  const lapsHtml = lapsData.map(l => {
     const isBest = bestLapMs && l.lap_time_ms === bestLapMs;
     const deltaMs = (l.lap_time_ms && bestLapMs) ? l.lap_time_ms - bestLapMs : null;
     let deltaStr = "--";
     if (isBest) deltaStr = '<span class="best-lap">BEST LAP</span>';
     else if (deltaMs !== null) deltaStr = `+${(deltaMs / 1000).toFixed(3)}s`;
 
+    const isBestS1 = l.sector1_ms && bestS1 && l.sector1_ms === bestS1;
+    const isBestS2 = l.sector2_ms && bestS2 && l.sector2_ms === bestS2;
+    const isBestS3 = l.sector3_ms && bestS3 && l.sector3_ms === bestS3;
+
     return `
       <tr style="cursor: pointer;" data-lap="${l.lap_number}" class="${l.lap_number === currentLapNumber ? 'table-active' : ''}">
         <td class="time-mono"><strong>Lap ${l.lap_number}</strong></td>
         <td class="time-mono ${isBest ? 'best-lap' : ''}">${formatLapTime(l.lap_time_ms)}</td>
+        <td class="time-mono ${isBestS1 ? 'sector-purple' : ''}">${formatSectorTime(l.sector1_ms)}</td>
+        <td class="time-mono ${isBestS2 ? 'sector-purple' : ''}">${formatSectorTime(l.sector2_ms)}</td>
+        <td class="time-mono ${isBestS3 ? 'sector-purple' : ''}">${formatSectorTime(l.sector3_ms)}</td>
         <td class="time-mono">${deltaStr}</td>
         <td class="time-mono">${Math.round(l.max_speed || 0)} km/h</td>
         <td class="time-mono">${Math.round(l.avg_speed || 0)} km/h</td>
-        <td style="color: var(--text-muted);">${(l.frame_count || 0).toLocaleString()}</td>
       </tr>
     `;
   }).join("");
 
-  tbody.querySelectorAll("tr").forEach(row => {
+  tbody.innerHTML = optimalRowHtml + lapsHtml;
+
+  tbody.querySelectorAll("tr[data-lap]").forEach(row => {
     row.addEventListener("click", () => {
       const lap = parseInt(row.dataset.lap, 10);
       currentLapNumber = lap;
@@ -234,6 +322,92 @@ function renderLapsTable() {
       renderLapsTable();
     });
   });
+}
+
+function renderReportView() {
+  if (!reportData) return;
+
+  const opt = reportData.optimal_lap || {};
+  const stint = reportData.stint_summary || {};
+  const tb = reportData.tyres_and_brakes || {};
+  const braking = reportData.braking_analysis || [];
+
+  // Optimal Lap Tile
+  const elOptLap = document.getElementById("report-optimal-lap");
+  if (elOptLap) elOptLap.textContent = formatLapTime(opt.optimal_lap_ms);
+
+  const elOptDelta = document.getElementById("report-optimal-delta");
+  if (elOptDelta) {
+    const gainMs = opt.potential_gain_ms;
+    elOptDelta.textContent = (gainMs !== null && gainMs !== undefined)
+      ? `Δ -${(gainMs / 1000).toFixed(3)}s`
+      : "Δ --";
+  }
+
+  // Consistency Tile
+  const elScore = document.getElementById("report-consistency-score");
+  if (elScore) elScore.textContent = `${stint.consistency_score ?? "--"}%`;
+
+  const elRating = document.getElementById("report-consistency-rating");
+  if (elRating) {
+    const stdStr = stint.std_dev_s !== undefined ? `(±${stint.std_dev_s}s)` : "";
+    elRating.textContent = `${stint.consistency_rating || "--"} ${stdStr}`.trim();
+  }
+
+  // Average Pace Tile
+  const elAvgPace = document.getElementById("report-avg-pace");
+  if (elAvgPace) elAvgPace.textContent = formatLapTime(stint.average_pace_ms);
+
+  const elFlying = document.getElementById("report-flying-laps");
+  if (elFlying) elFlying.textContent = `${stint.flying_laps_count ?? 0} / ${stint.total_laps ?? 0} Flying Laps`;
+
+  // Tyres & Brakes Tile
+  const elTyres = document.getElementById("report-tyre-window");
+  if (elTyres && tb.tyre_pressures_avg) {
+    const p = tb.tyre_pressures_avg;
+    const avgP = ((p.fl + p.fr + p.rl + p.rr) / 4).toFixed(1);
+    elTyres.textContent = `Ø ${avgP} PSI`;
+  }
+
+  const elBrake = document.getElementById("report-brake-peak");
+  if (elBrake && tb.brake_temps_max) {
+    const maxB = Math.max(tb.brake_temps_max.fl || 0, tb.brake_temps_max.fr || 0, tb.brake_temps_max.rl || 0, tb.brake_temps_max.rr || 0);
+    elBrake.textContent = `Peak Bremse: ${Math.round(maxB)}°C`;
+  }
+
+  // Braking & Apex Table
+  const brakeTbody = document.getElementById("braking-table-body");
+  if (brakeTbody) {
+    if (!braking.length) {
+      brakeTbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Keine Bremsdaten verfügbar</td></tr>`;
+    } else {
+      brakeTbody.innerHTML = braking.map(z => {
+        let deltaHtml = '<span style="color: var(--text-muted);">--</span>';
+        if (z.delta_apex_speed !== null && z.delta_apex_speed !== undefined) {
+          const sign = z.delta_apex_speed > 0 ? "+" : "";
+          const cls = z.delta_apex_speed >= 0 ? "delta-neg" : "delta-pos";
+          deltaHtml = `<span class="${cls}">${sign}${z.delta_apex_speed} km/h</span>`;
+        }
+        return `
+          <tr>
+            <td><strong>${z.corner}</strong></td>
+            <td class="time-mono">${(z.track_pos * 100).toFixed(1)}%</td>
+            <td class="time-mono">${z.entry_speed} km/h</td>
+            <td class="time-mono" style="color: var(--accent-cyan); font-weight: 700;">${z.apex_speed} km/h</td>
+            <td class="time-mono">${deltaHtml}</td>
+            <td class="time-mono">${z.braking_distance_m} m</td>
+            <td class="time-mono">${z.braking_duration_s} s</td>
+          </tr>
+        `;
+      }).join("");
+    }
+  }
+
+  // Debriefing text
+  const debriefBlock = document.getElementById("debriefing-text-block");
+  if (debriefBlock) {
+    debriefBlock.textContent = reportData.debriefing_text || "Kein Bericht vorhanden.";
+  }
 }
 
 async function loadTrackmapData() {

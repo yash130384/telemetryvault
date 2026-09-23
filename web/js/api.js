@@ -58,6 +58,12 @@ export async function deleteSession(sessionId) {
   return await res.json();
 }
 
+export async function fetchSessionReport(sessionId) {
+  const res = await fetch(`/api/sessions/${sessionId}/report`);
+  if (!res.ok) throw new Error("Session report data unavailable");
+  return await res.json();
+}
+
 export function formatLapTime(ms) {
   if (!ms || ms <= 0) return "--:--.---";
   const totalSec = ms / 1000.0;
@@ -65,6 +71,14 @@ export function formatLapTime(ms) {
   const secs = (totalSec % 60).toFixed(3);
   const padSecs = (totalSec % 60) < 10 ? "0" + secs : secs;
   return `${mins}:${padSecs}`;
+}
+
+export function formatSectorTime(ms) {
+  if (!ms || ms <= 0) return "--.---s";
+  if (ms < 60000) {
+    return `${(ms / 1000.0).toFixed(3)}s`;
+  }
+  return formatLapTime(ms);
 }
 
 export function formatDateTime(isoString) {

@@ -44,6 +44,7 @@
         <div class="btn-group">
           <button id="tab-single" class="btn active">Telemetry</button>
           <button id="tab-compare" class="btn">Lap Compare</button>
+          <button id="tab-report" class="btn">Race Engineer</button>
         </div>
 
         <select id="select-lap" class="select-input" style="font-weight: 600;">
@@ -331,24 +332,113 @@
       </div>
     </div>
 
+    <!-- Mode 3: Race Engineer Stint Report View -->
+    <div id="report-container" class="report-container" style="display: none;">
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="dot" style="background-color: var(--accent-purple);"></span>
+            Renningenieur Stint-Report & Debriefing
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span id="copy-status" class="copy-badge" style="display: none;">✓ Bericht kopiert!</span>
+            <button id="btn-copy-debrief" class="btn btn-primary">
+              📋 Renningenieur Bericht kopieren
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <!-- Overview Tiles -->
+          <div class="hud-grid" style="margin-top: 0; margin-bottom: 1.25rem;">
+            <div class="hud-tile" style="border-top: 2px solid var(--accent-purple);">
+              <div class="hud-tile-label">Theoretische Bestzeit</div>
+              <div class="hud-tile-value sector-purple" id="report-optimal-lap">--:--.---</div>
+              <div class="hud-tile-sub" id="report-optimal-delta" style="color: var(--accent-purple); font-weight: 700;">Δ -0.000s</div>
+            </div>
+
+            <div class="hud-tile" style="border-top: 2px solid var(--accent-green);">
+              <div class="hud-tile-label">Consistency Score</div>
+              <div class="hud-tile-value" id="report-consistency-score">--%</div>
+              <div class="hud-tile-sub" id="report-consistency-rating">--</div>
+            </div>
+
+            <div class="hud-tile" style="border-top: 2px solid var(--accent-cyan);">
+              <div class="hud-tile-label">Average Pace</div>
+              <div class="hud-tile-value" id="report-avg-pace" style="color: var(--accent-cyan);">--:--.---</div>
+              <div class="hud-tile-sub" id="report-flying-laps">-- Flying Laps</div>
+            </div>
+
+            <div class="hud-tile" style="border-top: 2px solid var(--accent-amber);">
+              <div class="hud-tile-label">Reifendruck (Ø) & Bremse (Peak)</div>
+              <div class="hud-tile-value" id="report-tyre-window" style="font-size: 1.2rem; color: var(--accent-amber); margin-top: 0.2rem;">-- PSI</div>
+              <div class="hud-tile-sub" id="report-brake-peak">Bremse: --°C</div>
+            </div>
+          </div>
+
+          <!-- Brems- & Scheitelpunkt-Analyse Table -->
+          <div style="margin-top: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h4 style="font-size: 0.85rem; font-family: var(--font-mono); text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.5px;">
+                🛑 Brems- & Scheitelpunkt-Analyse (Apex & Braking Analysis)
+              </h4>
+              <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">
+                Beste Runde vs. Vergleichsrunde
+              </span>
+            </div>
+            <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+              <table class="sessions-table">
+                <thead>
+                  <tr>
+                    <th>Corner / Zone</th>
+                    <th>Track Pos</th>
+                    <th>Entry Speed</th>
+                    <th>Apex Speed</th>
+                    <th>Δ to Compare</th>
+                    <th>Bremsweg</th>
+                    <th>Bremsdauer</th>
+                  </tr>
+                </thead>
+                <tbody id="braking-table-body">
+                  <!-- Populated by analysis.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Debriefing Text Card -->
+          <div style="margin-top: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h4 style="font-size: 0.85rem; font-family: var(--font-mono); text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.5px;">
+                💬 Renningenieur Telegram Debriefing
+              </h4>
+            </div>
+            <pre id="debriefing-text-block" style="background: var(--bg-inset); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-family: var(--font-mono); font-size: 0.85rem; white-space: pre-wrap; line-height: 1.5; color: var(--text-primary); max-height: 350px; overflow-y: auto;"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Laps Table Card -->
     <div class="card">
       <div class="card-header">
         <div class="card-title">
           <span class="dot"></span>
-          Session Laps & Consistency
+          Session Laps & Sektor-Splits
         </div>
       </div>
-      <div class="card-body" style="padding: 0;">
+      <div class="card-body" style="padding: 0; overflow-x: auto;">
         <table class="sessions-table">
           <thead>
             <tr>
               <th>Lap #</th>
               <th>Lap Time</th>
+              <th>S1</th>
+              <th>S2</th>
+              <th>S3</th>
               <th>Delta (Gap)</th>
               <th>Max Speed</th>
               <th>Avg Speed</th>
-              <th>Data Points</th>
             </tr>
           </thead>
           <tbody id="laps-table-body">

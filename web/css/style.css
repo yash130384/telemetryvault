@@ -718,3 +718,63 @@ canvas#trackmap-canvas {
   border-bottom-color: var(--accent-cyan);
   font-weight: 600;
 }
+
+/* =========================================================
+   RACE ENGINEER & SECTOR SPLITS STYLES
+========================================================= */
+.sector-purple {
+  color: var(--accent-purple) !important;
+  font-weight: 700 !important;
+  text-shadow: 0 0 6px rgba(213, 0, 249, 0.4);
+}
+
+.optimal-lap-row {
+  background: linear-gradient(90deg, rgba(213, 0, 249, 0.12), rgba(0, 212, 255, 0.05)) !important;
+  border-bottom: 2px solid var(--accent-purple) !important;
+  border-top: 1px solid rgba(213, 0, 249, 0.3) !important;
+  font-weight: 700;
+}
+
+.optimal-lap-row:hover {
+  background: linear-gradient(90deg, rgba(213, 0, 249, 0.18), rgba(0, 212, 255, 0.08)) !important;
+}
+
+.badge-purple {
+  display: inline-block;
+  background-color: var(--accent-purple-dim);
+  border: 1px solid var(--accent-purple);
+  color: var(--accent-purple);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.5px;
+}
+
+.copy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-green-dim);
+  border: 1px solid var(--accent-green);
+  color: var(--accent-green);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  animation: pulse 1.5s ease infinite;
+}
+
+.delta-pos {
+  color: var(--accent-red);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.delta-neg {
+  color: var(--accent-green);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}

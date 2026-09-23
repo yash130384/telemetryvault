@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconn
 from server.db import get_db_pool
 from server.ingest import telemetry_manager
 from server.config import UDP_PORT, UDP_HOST
+from server.analysis_service import generate_session_report
 
 logger = logging.getLogger("telemetryvault.api")
 
@@ -116,6 +117,15 @@ async def get_session_laps(session_id: int):
             ORDER BY lap_number ASC;
         """, session_id)
         return [dict(l) for l in laps]
+ 
+@router.get("/sessions/{session_id}/report")
+async def get_session_report(session_id: int):
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        report = await generate_session_report(session_id, conn)
+        if not report:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return report
 
 @router.get("/sessions/{session_id}/telemetry")
 async def get_telemetry(
